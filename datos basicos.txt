@@ -1,0 +1,699 @@
+'use client';
+import React, { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { AtSign, MapPin, Phone, Search } from 'lucide-react';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { clientGeneralInfoFormSchema } from '@/entities/client/client-portfolio';
+import { CapitalizedInput } from '@/components/ui/capitalized-input';
+import Link from 'next/link';
+import showCancelAlert from '@/components/shared/alert-cancel';
+import { showSaveAlert } from '@/components/shared/alert-save';
+import {
+  useCreateTypeClient,
+  useGetTypeClient,
+} from '@/hooks/settings/typeclient';
+import { TypeClient } from '@/entities/settings/typeclient';
+import UbigeoSearch from '@/components/shared/ubigeo-search';
+import { useGetBusinessTurn } from '@/hooks/settings/line-business';
+import { LineBusiness } from '@/entities/settings/line-busines';
+import { SubLineBusiness } from '@/entities/settings/sub-line-busines';
+import { useGetSubBusinessTurn } from '@/hooks/settings/sub-line-business';
+import { useGetChannel } from '@/hooks/settings/channel';
+import { Channel } from '@/entities/settings/channel';
+import {
+  useCreatePortfolioClients,
+  useDataSunat,
+  useGetClient,
+} from '@/hooks/client';
+import SingleUbigeoSearch from '@/components/shared/single-ubigeo-search';
+import { Value } from '@radix-ui/react-select';
+import { useGetSeller } from '@/hooks/seller';
+import { Seller } from '@/entities/seller/seller';
+
+export default function DatosBasicos() {
+  const handleSave = (event: React.MouseEvent<HTMLButtonElement>) => {
+    // API
+    showSaveAlert({
+      title: 'Datos agregados con éxito',
+      icon: 'success',
+      timer: 1500,
+    });
+  };
+
+  interface Option {
+    value: string;
+    label: string;
+  }
+
+  const { mutate } = useCreatePortfolioClients();
+
+  const form = useForm<z.infer<typeof clientGeneralInfoFormSchema>>({
+    resolver: zodResolver(clientGeneralInfoFormSchema),
+    defaultValues: {},
+  });
+
+  const [mainIdentification, setMainIdentification] = useState<
+    string | undefined
+  >();
+
+  const { data: dataSunat, isLoading: DataSunat } =
+    useDataSunat(mainIdentification);
+
+  const { data: dataTypeClients, isLoading: TypeClients } = useGetTypeClient();
+  const { data: dataChanel, isLoading: Chanel } = useGetChannel();
+
+  const { data: dataBusinessTurns, isLoading: BusinessTurns } =
+    useGetBusinessTurn(); // No necesitas pasar el tipo LineBusiness aquí
+  const { data: dataSubBusinessTurns, isLoading: SubBusinessTurns } =
+    useGetSubBusinessTurn();
+
+  const watchDataSunat = form.watch('entity.main_identification');
+  const watchTypeClientId = form.watch('type_client_id');
+  const watchTypeClient = form.watch('type_client');
+  useEffect(() => {
+    const selectedTypeClient = dataTypeClients?.find(
+      (e: any) => e.id == watchTypeClientId
+    )?.code;
+
+    form.setValue('type_client', selectedTypeClient || '');
+  }, [watchTypeClientId, dataTypeClients]);
+  function generarEmailDinamico() {
+    const nombres = ['usuario', 'cliente', 'persona', 'admin', 'test'];
+    const dominios = [
+      'example.com',
+      'dominio.com',
+      'mail.com',
+      'empresa.org',
+      'correo.net',
+    ];
+
+    // Generar un índice aleatorio para el nombre y el dominio
+    const nombreAleatorio = nombres[Math.floor(Math.random() * nombres.length)];
+    const dominioAleatorio =
+      dominios[Math.floor(Math.random() * dominios.length)];
+
+    // Generar un número aleatorio para hacer único el nombre de usuario
+    const numeroAleatorio = Math.floor(Math.random() * 10000);
+
+    // Retornar el email dinámico
+    return `${nombreAleatorio}${numeroAleatorio}@${dominioAleatorio}`;
+  }
+  function onSubmit(values: z.infer<typeof clientGeneralInfoFormSchema>) {
+    const clientData = {
+      delivery_data: [], //data obligatoria
+      manager_details: [
+        {
+          ...values.entity,
+          main_phone: Math.floor(Math.random() * 900000000) + 100000000,
+          main_email: generarEmailDinamico(),
+          main_identification: Math.floor(Math.random() * 90000000) + 10000000,
+          name: values.business_name,
+        },
+      ], //data obligatoria
+      type_entity:
+        values.type_client === 'negocio' || values.type_client === 'juridico'
+          ? 'company'
+          : 'person',
+      type_client_id: values.type_client_id && parseInt(values.type_client_id),
+      type_channel_id:
+        values.type_channel_id && parseInt(values.type_channel_id),
+      entity: values.entity,
+      business_turn_id: values.business_turn && parseInt(values.business_turn),
+      business_subcategory_id:
+        values.business_subcategory_id &&
+        parseInt(values.business_subcategory_id),
+      status: true,
+      seller_id: values.seller_id,
+    };
+
+    mutate(clientData, {
+      onSuccess: () =>
+        showSaveAlert({ title: 'Cliente creado con éxito', icon: 'success' }),
+      onError: (error) => console.log('Error creando cliente:', error),
+    });
+  }
+
+  const handleCancel = () => {
+    showCancelAlert({
+      title: 'Cancelar',
+      text: '¿Está seguro que quiere cancelar?',
+      icon: 'warning',
+      confirmButtonText: 'Sí, cancelar',
+      cancelButtonText: 'No, volver',
+      onConfirm: () => {
+        window.location.href = '/admin/cartera-clientes';
+      },
+      onCancel: () => {
+        console.log('Cancelación abortada');
+      },
+    });
+  };
+
+  const handleSunat = () => {
+    setMainIdentification(watchDataSunat);
+  };
+  useEffect(() => {
+    console.log(dataSunat);
+
+    if (dataSunat) {
+      form.setValue('entity.name', dataSunat.name);
+      if (dataSunat.from == 'reniec') {
+        form.setValue(
+          'entity.last_name',
+          dataSunat.father_lastname + ' ' + dataSunat.mother_lastname
+        );
+      }
+    }
+  }, [dataSunat]);
+  const { data: dataSeller, isLoading: seller } = useGetSeller();
+  console.log(dataSeller);
+
+  const [selectedCliente, setSelectedCliente] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const filteredCliente =
+    dataSeller &&
+    dataSeller.filter(
+      (c: any) => c.name?.toLowerCase().includes(searchTerm.toLowerCase()) || ''
+    );
+  return (
+    <>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <span className="text-[17px]">Información General</span>
+          <div
+            className="my-1 flex w-full divide-x-[2.5px] divide-[#C7D8E3] rounded-xl border-2 border-[#C7D8E3] bg-[#F5F5F5]
+           max-[966px]:flex-col max-[966px]:divide-x-0 max-[966px]:divide-y-[2.5px]"
+          >
+            <div className="flex w-full flex-col">
+              <div className="flex w-full flex-col gap-4 p-4 min-[700px]:flex-row">
+                <FormField
+                  control={form.control}
+                  name="type_client_id"
+                  render={({ field }) => (
+                    <FormItem className="w-full">
+                      <FormLabel className="text-[16px]">
+                        Tipo de Cliente:
+                      </FormLabel>
+                      <Select
+                        onValueChange={(e) => {
+                          field.onChange(e);
+                        }}
+                        value={field.value}
+                      >
+                        <SelectTrigger
+                          className=" mt-2 w-full items-center rounded-xl border-2 border-[#DFEAF2] bg-white px-5 text-[15px] text-[#3E4954] 
+                           data-[state=open]:border-[#2499EF] data-[state=open]:outline-none active:border-[#2499EF] active:outline-none   "
+                        >
+                          <SelectValue placeholder="seleccionar" />
+                        </SelectTrigger>
+                        <SelectContent className="z-50 rounded-xl border-2 border-[#DFEAF2] bg-white text-[#3E4954]">
+                          <SelectGroup>
+                            {/* {dataTypeClient} */}
+                            {dataTypeClients?.map(
+                              (dataTypeClient: TypeClient) => (
+                                <SelectItem
+                                  key={dataTypeClient.id}
+                                  value={dataTypeClient.id.toString()}
+                                >
+                                  {dataTypeClient.name}
+                                </SelectItem>
+                              )
+                            )}
+                            {/* <SelectItem
+                              className="rounded-md text-[15px]"
+                              value="natural"
+                            >
+                              Persona Natural
+                            </SelectItem>
+                            <SelectItem
+                              className="rounded-md text-[15px]"
+                              value="juridico"
+                            >
+                              Persona Jurídica
+                            </SelectItem>
+                            <SelectItem
+                              className="rounded-md text-[15px]"
+                              value="negocio"
+                            >
+                              Persona con Negocio
+                            </SelectItem> */}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="type_channel_id"
+                  render={({ field }) => (
+                    <FormItem className="w-full">
+                      <FormLabel className="text-[16px]">
+                        Canal: <span className="text-red-600">*</span>
+                      </FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={JSON.stringify(field.value)}
+                        disabled={Chanel} // Desactivar si los giros están cargando
+                        {...field}
+                      >
+                        <SelectTrigger
+                          className=" mt-2 w-full items-center rounded-xl border-2 border-[#DFEAF2] bg-white px-5 text-[15px] text-[#3E4954] 
+                           data-[state=open]:border-[#2499EF] data-[state=open]:outline-none active:border-[#2499EF] active:outline-none "
+                        >
+                          <SelectValue placeholder="seleccionar" />
+                        </SelectTrigger>
+                        <SelectContent className="z-50 rounded-xl border-2 border-[#DFEAF2] bg-white text-[#3E4954]">
+                          <SelectGroup>
+                            {dataChanel?.map((chanel: Channel) => (
+                              <SelectItem
+                                key={chanel.id}
+                                value={chanel.id.toString()}
+                              >
+                                {chanel.name}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {dataTypeClients && (
+                <FormField
+                  control={form.control}
+                  name="type_client"
+                  render={({ field }) => (
+                    <FormItem className="w-full">
+                      <Input
+                        value={field.value}
+                        onChange={field.onChange}
+                        className="remove-number-input-arrows w-full items-center rounded-xl border-2 border-[#DFEAF2] bg-white px-5 
+                        text-[15px] text-[#3E4954] outline-none focus-within:border-[#2499EF]"
+                        type="hidden"
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              <FormField
+                control={form.control}
+                name="entity.main_identification"
+                render={({ field }) => (
+                  <FormItem className="w-full px-4 pb-4">
+                    <FormLabel className="text-[16px]">
+                      {watchTypeClient === 'juridico' ? 'RUC:' : 'DNI:'}
+                      <span className="text-red-600">*</span>
+                    </FormLabel>
+                    <div className="flex items-center gap-3 ">
+                      <Input
+                        {...field}
+                        className="remove-number-input-arrows w-full items-center rounded-xl border-2 border-[#DFEAF2] bg-white px-5 
+                        text-[15px] text-[#3E4954] outline-none focus-within:border-[#2499EF]"
+                        type="text"
+                        placeholder={`Ingrese el ${watchTypeClient === 'juridico' ? 'RUC' : 'DNI'}`}
+                      />
+                      <Button
+                        onClick={handleSunat}
+                        type="button"
+                        className="  h-full items-center gap-1 rounded-xl border-2 border-[#DFEAF2] bg-white py-3 hover:shadow-lg"
+                      >
+                        <Search
+                          size={16}
+                          strokeWidth={1.77}
+                          className="cursor-pointer"
+                        />
+                      </Button>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {watchTypeClient === 'negocio' && (
+                <FormField
+                  control={form.control}
+                  name="comercial_name"
+                  render={({ field }) => (
+                    <FormItem className="w-full px-4 pb-4">
+                      <FormLabel className="text-[16px]">
+                        Nombre Comercial:{' '}
+                        <span className="text-red-600">*</span>
+                      </FormLabel>
+                      <Input
+                        {...field}
+                        className="w-full items-center rounded-xl border-2 border-[#DFEAF2] bg-white px-5 text-[15px] text-[#3E4954]"
+                        type="text"
+                        placeholder="Ingrese el nombre comercial"
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              <div className="flex w-full flex-col gap-4 px-4 pb-4 min-[700px]:flex-row">
+                <FormField
+                  control={form.control}
+                  name="entity.name"
+                  render={({ field }) => (
+                    <FormItem className="w-full">
+                      <FormLabel className="text-[16px]">
+                        {watchTypeClient === 'juridico'
+                          ? 'Razón Social:'
+                          : 'Nombres:'}{' '}
+                        <span className="text-red-600">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <CapitalizedInput
+                          {...field}
+                          className="w-full items-center rounded-xl border-2 border-[#DFEAF2] bg-white px-5 text-[15px] text-[#3E4954]"
+                          placeholder={
+                            watchTypeClient === 'juridico'
+                              ? 'Ingrese la razón social'
+                              : 'Ingrese los nombres'
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="business_name"
+                  render={({ field }) => (
+                    <FormItem className="w-full">
+                      <FormLabel className="text-[16px]">
+                        Nombre del Contacto
+                        <span className="text-red-600">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <CapitalizedInput
+                          {...field}
+                          className="w-full items-center rounded-xl border-2 border-[#DFEAF2] bg-white px-5 text-[15px] text-[#3E4954]"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {watchTypeClient !== 'juridico' && (
+                  <FormField
+                    control={form.control}
+                    name="entity.last_name"
+                    render={({ field }) => (
+                      <FormItem className="w-full outline-none">
+                        <FormLabel className="text-[16px]">
+                          Apellidos: <span className="text-red-600">*</span>
+                        </FormLabel>
+                        <FormControl>
+                          <CapitalizedInput
+                            {...field}
+                            className="w-full items-center rounded-xl border-2 border-[#DFEAF2] bg-white px-5 text-[15px] text-[#3E4954]"
+                            placeholder="Ingrese los apellidos"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </div>
+
+              <FormField
+                control={form.control}
+                name="entity.main_direction"
+                render={({ field }) => (
+                  <FormItem className="w-full px-4 pb-4">
+                    <FormLabel className="text-[16px]">
+                      Dirección legal: <span className="text-red-600">*</span>
+                    </FormLabel>
+                    <div className="flex w-full items-center rounded-xl border-2 border-[#DFEAF2] bg-white focus-within:border-[#2499EF]">
+                      <Input
+                        {...field}
+                        className="w-full rounded-xl px-5 text-[15px] text-[#3E4954] outline-none"
+                        type="text"
+                        placeholder="Ingrese la dirección"
+                      />
+                      <MapPin
+                        size={17}
+                        strokeWidth={1.75}
+                        className="mr-3 cursor-pointer"
+                      />
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="flex w-full flex-col">
+              <div className="flex w-full flex-col gap-4 px-4 pt-4 min-[700px]:flex-row">
+                <FormField
+                  control={form.control}
+                  name="business_turn"
+                  render={({ field }) => (
+                    <FormItem className="w-full">
+                      <FormLabel
+                        htmlFor="business_turn"
+                        className="text-[16px]"
+                      >
+                        Giro de Negocio:
+                      </FormLabel>
+                      <FormControl>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                          disabled={BusinessTurns} // Desactivar si los giros están cargando
+                          {...field}
+                        >
+                          <SelectTrigger className="mt-2 w-full items-center rounded-xl border-2 border-[#DFEAF2] bg-white px-5 text-[15px] text-[#3E4954]">
+                            <SelectValue placeholder="seleccionar" />
+                          </SelectTrigger>
+                          <SelectContent className="z-50 h-[155px] rounded-xl border-2 border-[#DFEAF2] bg-white text-[#3E4954]">
+                            <SelectGroup>
+                              {dataBusinessTurns?.map((turn: LineBusiness) => (
+                                <SelectItem
+                                  key={turn.id}
+                                  value={turn.id.toString()}
+                                >
+                                  {turn.name}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* <FormField
+                  control={form.control}
+                  name="business_subcategory_id"
+                  render={({ field }) => (
+                    <FormItem className="w-full outline-none">
+                      <FormLabel
+                        htmlFor="business_subcategory_id"
+                        className="text-[16px]"
+                      >
+                        Sub giro de Negocio:
+                      </FormLabel>
+                      <FormControl>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={JSON.stringify(field.value)}
+                          disabled={SubBusinessTurns} // Desactivar si los giros están cargando
+                          {...field}
+                        >
+                          <SelectTrigger className="mt-2 w-full items-center rounded-xl border-2 border-[#DFEAF2] bg-white px-5 text-[15px] text-[#3E4954]">
+                            <SelectValue placeholder="seleccionar" />
+                          </SelectTrigger>
+                          <SelectContent className="z-50 h-[155px] rounded-xl border-2 border-[#DFEAF2] bg-white text-[#3E4954]">
+                            <SelectGroup>
+                              {dataSubBusinessTurns?.map(
+                                (turn: SubLineBusiness) => (
+                                  <SelectItem
+                                    key={turn.id}
+                                    value={turn.id.toString()}
+                                  >
+                                    {turn.name}
+                                  </SelectItem>
+                                )
+                              )}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                /> */}
+              </div>
+
+              <FormField
+                control={form.control}
+                name="entity.ubigeo"
+                render={({ field }) => (
+                  <FormItem className="w-full p-4">
+                    <FormLabel className="text-[16px]">Ubigeo</FormLabel>
+                    <SingleUbigeoSearch
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="seller_id"
+                render={({ field }) => (
+                  <FormItem className="w-full px-4 pb-4">
+                    <FormLabel className="text-[16px]">
+                      Vendedor: <span className="text-red-600">*</span>
+                    </FormLabel>
+                    <Select
+                      value={field.value}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        setSelectedCliente(value);
+                      }}
+                    >
+                      {' '}
+                      <SelectTrigger className="w-full items-center rounded-xl border-2 border-[#DFEAF2] bg-white px-5 text-[15px] text-[#3E4954]">
+                        <SelectValue placeholder="seleccionar" />
+                      </SelectTrigger>
+                      <SelectContent className="z-50 h-[155px] rounded-xl border-2 border-[#DFEAF2] bg-white text-[#3E4954]">
+                        <input
+                          type="text"
+                          placeholder="Buscar..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="w-full rounded-md border-2 border-[#DFEAF2] px-2 py-1 text-[#3E4954] outline-none"
+                        />
+                        <SelectGroup>
+                          {dataSeller
+                            ?.filter((seller: Seller) =>
+                              seller.user
+                                .toLowerCase()
+                                .includes(searchTerm.toLowerCase())
+                            )
+                            .map((seller: Seller) => (
+                              <SelectItem
+                                className="outline-none"
+                                key={seller.id}
+                                value={seller.id.toString()}
+                              >
+                                {seller.user}
+                              </SelectItem>
+                            ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex w-full flex-col gap-4 px-4 pb-4 min-[700px]:flex-row">
+                <FormField
+                  control={form.control}
+                  name="entity.main_email"
+                  render={({ field }) => (
+                    <FormItem className="w-full">
+                      <FormLabel className="text-[16px]">
+                        Correo: <span className="text-red-600">*</span>
+                      </FormLabel>
+                      <div className="flex w-full items-center rounded-xl border-2 border-[#DFEAF2] bg-white focus-within:border-[#2499EF]">
+                        <Input
+                          {...field}
+                          className="w-full rounded-xl px-5 text-[15px] text-[#3E4954] outline-none"
+                          type="email"
+                          placeholder="Ingrese el correo"
+                        />
+                        <AtSign size={17} strokeWidth={1.75} className="mr-3" />
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="entity.main_phone"
+                  render={({ field }) => (
+                    <FormItem className="w-full">
+                      <FormLabel className="text-[16px]">
+                        Teléfono: <span className="text-red-600">*</span>
+                      </FormLabel>
+                      <div className="flex w-full items-center rounded-xl border-2 border-[#DFEAF2] bg-white focus-within:border-[#2499EF]">
+                        <Input
+                          {...field}
+                          className="remove-number-input-arrows w-full rounded-xl px-5 text-[15px] text-[#3E4954] outline-none"
+                          type="tel"
+                          placeholder="Ingrese el teléfono"
+                        />
+                        <Phone size={16} strokeWidth={1.75} className="mr-3" />
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+          </div>
+          <div className="pb-1 pt-4">
+            <div className="flex w-full flex-col gap-4 min-[700px]:flex-row min-[861px]:justify-end">
+              <div className="w-full min-[861px]:w-auto">
+                <Button
+                  onClick={handleCancel}
+                  type="button"
+                  className="h-10 w-full rounded-lg border-[1.5px] border-[#C6D0D7] bg-gray-100 hover:bg-slate-200"
+                >
+                  Cancelar
+                </Button>
+              </div>
+              <div className="w-full min-[861px]:w-auto">
+                <Button
+                  type="submit"
+                  className="h-10 w-full rounded-lg border-[1.5px] border-[#005BC6] bg-blue-500 text-white hover:bg-blue-600"
+                >
+                  Agregar
+                </Button>
+              </div>
+            </div>
+          </div>
+        </form>
+      </Form>
+    </>
+  );
+}
